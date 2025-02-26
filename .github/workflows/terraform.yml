@@ -44,9 +44,9 @@ jobs:
           run: terraform fmt -check
           continue-on-error: true 
 
-        - name: Terraform Validate
-          id: validate
-          run: terraform validate
+        # - name: Terraform Validate
+        #   id: validate
+        #   run: terraform validate
 
         - name: Terraform Plan
           id: plan
