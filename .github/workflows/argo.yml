@@ -37,15 +37,22 @@ jobs:
         run: |
           aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME
 
-      - name: Install Helm
+      - name: Install ArgoCD
         run: |
-          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          kubectl create namespace argocd || true  # Ignore if namespace already exists
+          kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
-      - name: Deploy ArgoCD via Helm
+      - name: Wait for ArgoCD to be Ready
         run: |
-          helm repo add argo https://argoproj.github.io/argo-helm
-          helm repo update
-          helm upgrade --install argocd argo/argo-cd --namespace argocd --create-namespace
+          echo "Waiting for ArgoCD to be ready..."
+          kubectl wait --for=condition=available --timeout=600s deployment/argocd-server -n argocd
 
-      - name: Verify ArgoCD Installation
-        run: kubectl get pods -n argocd
+      - name: Retrieve ArgoCD Initial Admin Password
+        run: |
+          echo "Retrieving ArgoCD initial admin password..."
+          kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 --decode
+
+      - name: Retrieve ArgoCD URL
+        run: |
+          ARGOCD_SERVER=$(kubectl get svc -n argocd argocd-server -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
+          echo "ArgoCD is accessible at: https://$ARGOCD_SERVER"
