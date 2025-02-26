@@ -42,17 +42,25 @@ jobs:
           kubectl create namespace argocd || true  # Ignore if namespace already exists
           kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
-      - name: Wait for ArgoCD to be Ready
+      - name: Expose ArgoCD via LoadBalancer
         run: |
-          echo "Waiting for ArgoCD to be ready..."
-          kubectl wait --for=condition=available --timeout=600s deployment/argocd-server -n argocd
+          kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "LoadBalancer"}}'
+
+      - name: Wait for LoadBalancer IP
+        run: |
+          echo "Waiting for ArgoCD LoadBalancer IP..."
+          while [[ -z $(kubectl get svc argocd-server -n argocd -o jsonpath='{.status.loadBalancer.ingress[0].hostname}') ]]; do
+            echo "Waiting for external IP..."
+            sleep 10
+          done
+
+      - name: Retrieve ArgoCD URL
+        run: |
+          ARGOCD_SERVER=$(kubectl get svc argocd-server -n argocd -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          echo "ArgoCD is accessible at: https://$ARGOCD_SERVER"
 
       - name: Retrieve ArgoCD Initial Admin Password
         run: |
           echo "Retrieving ArgoCD initial admin password..."
           kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 --decode
 
-      - name: Retrieve ArgoCD URL
-        run: |
-          ARGOCD_SERVER=$(kubectl get svc -n argocd argocd-server -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
-          echo "ArgoCD is accessible at: https://$ARGOCD_SERVER"
